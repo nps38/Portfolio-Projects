@@ -1,0 +1,131 @@
+---
+format:
+  typst:
+    mainfont: Helvetica
+    fig-format: png
+    fig-dpi: 300
+    fig-width: 6
+    fig-height: 4
+    include-in-header:
+        - text: |
+            /* Color links */
+            #show link: set text(fill: rgb(0, 0, 255))
+editor: source
+---
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+library(tidyverse)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+library(ggforce)
+```
+
+# Olympic Triathlon Data Analysis
+
+```{r}
+#| message: false
+olympics <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-27/olympics.csv')
+
+triathlon <- olympics |> 
+  filter(!is.na(height)) |>             # only keep athletes with known height
+  filter(sport == "Triathlon") |>       # keep only triathletes
+  mutate(
+    medalist = case_when(                # add column to track medalist vs not
+      is.na(medal) ~ "non-medalist",
+      !is.na(medal) ~ "medalist"         # any medals (Gold, Silver, Bronze) count
+    )
+  )
+```
+
+## Introduction
+
+For this project, we are working with the triathlon dataset, a subset of the TidyTuesday Olympics dataset. The triathlon dataset contains 528 triathlete records from 2000 to 2016. More information about the original olympics dataset can be found at https://github.com/rfordatascience/tidytuesday/tree/master/data/2021/2021-07-27/readme.md and https://www.sportsreference.com/olympics.html. The focus of this project will be to demonstrate data cleaning, exploratory data analysis, and data visualization.
+
+We will use the triathlon dataset to answer the following questions:
+
+1. In how many events total did male and female triathletes compete for each country? 
+2. Are there height differences among triathletes between sexes or over time?
+3. Are there height differences among triathletes that have won medals or not, considering athlete sex? 
+
+## Analysis
+**Question 1: In how many events total did male and female triathletes compete for each country?**
+
+```{r}
+#| fig-width: 6
+#| fig-height: 7
+#| out-width: "75%"
+ggplot(triathlon, aes(y = fct_rev(fct_infreq(team)), fill = sex)) + 
+  geom_bar(position = "stack") +
+  labs(title = "Total Number of Triathlon Events by Country") +
+  scale_y_discrete(name = NULL) + 
+  scale_x_continuous(
+    name = "Number of Events", expand = expansion(mult = c(0, 0.1))
+  ) +
+  scale_fill_manual(
+    values = c("M" = "#00BFC4", "F" = "#F8766D"),
+    name = "Athlete",
+    labels = c("Male", "Female")
+  )
+```
+**Key Findings:** Olympic triathlon participation varied considerably by country and sex. The United States, Great Britain, and Australia had among the highest numbers of recorded athlete appearances, while several countries had relatively few appearances. Some countries also had participation recorded exclusively in either men's or women's events.
+
+**Question 2: Are there height differences among triathletes between sexes or over time?**
+
+```{r}
+#| fig-width: 6
+#| fig-height: 5
+#| out-width: "75%"
+triathlon2 <- triathlon |>
+  mutate(year = factor(year))
+
+ggplot(triathlon2, aes(x = year, y = height, fill = sex)) + 
+  geom_boxplot() + 
+  scale_x_discrete(name = NULL) + 
+  scale_y_continuous(name = "Height") +
+  scale_fill_discrete(
+    labels = c("F" = "Female", "M" = "Male"),
+    name = "Athlete"
+  ) +
+  labs(title = "Male vs Female Triathletes Heights Over Time")
+  
+```
+**Key Findings:** Male triathletes were consistently taller than female triathletes across Olympic years, while median height within each sex remained relatively stable over time.
+
+**Question 3: Are there height differences among triathletes that have won medals or not, considering athlete sex?** 
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+#| out-width: "80%"
+ggplot(triathlon, aes(x = medalist, y = height, fill = sex)) + 
+  geom_violin(alpha = 0.5, linewidth = 0.2) +
+  geom_sina(size = 0.8) +
+  scale_x_discrete(name = NULL) + 
+  scale_y_continuous(name = "Height") +
+  scale_fill_discrete(
+    labels = c("F" = "Female", "M" = "Male"), 
+    guide = "none"
+  ) +
+  labs(title = "Heights of Male and Female Medalists vs Non-Medalists") +
+  facet_wrap(
+    ~sex,
+    labeller = as_labeller(c(M = "Male Athletes", F = "Female Athletes"))
+  ) +
+  theme_bw()
+
+```
+**Key Findings:** The distributions show substantial overlap between medalists and non-medalists, suggesting that height alone does not clearly distinguish medal-winning athletes in this dataset.
+
+## Conclusion
+
+This analysis provided an opportunity to explore Olympic triathlon data and identify patterns in athlete participation and characteristics. The results demonstrate how data visualization can be used to compare groups, examine distributions, and identify patterns within a dataset. While the analysis provides useful descriptive insights, additional variables and statistical methods would be needed to better understand the factors that may influence Olympic participation and athletic performance. Overall, this project demonstrates the use of R for data cleaning, exploratory data analysis, visualization, and communicating insights from real-world data.
+
+
