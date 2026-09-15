@@ -1,0 +1,137 @@
+---
+format:
+  typst:
+    mainfont: Helvetica
+    fig-format: png
+    fig-dpi: 300
+    fig-width: 6
+    fig-height: 4
+    include-in-header:
+        - text: |
+            /* Color links */
+            #show link: set text(fill: rgb(0, 0, 255))
+editor: source
+---
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+library(tidyverse)
+library(ggforce)
+```
+
+# Himalayan Expedition Data Analysis
+
+```{r}
+#| message: false
+members <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-22/members.csv')
+
+members
+```
+
+## Introduction
+
+In this project, we are working with a subset of the Himalayan Database. The complete Himalayan Database is a compilation of records for all expeditioners that have climbed in the Himalayas, based on the expedition archives of journalist Elizabeth Hawley. The member dataset contains information of all individuals who participated in expeditions from 1905 to Spring 2019 to over 465 significant peaks in Nepal. More information about the dataset can be [found here (Tidy Tuesday project)](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-09-22/readme.md) and [here (Himalayan Database).](https://www.himalayandatabase.com/) The focus of this project is to demonstrate data wrangling, data analysis, and data visualization using R.
+
+We will be using this dataset to answer the following questions:
+
+**Question 1:** Which 10 countries had the most successful expedition members?
+
+**Question 2:** Are there differences between the number of members who successfully and unsuccessfully completed expeditions considering the season in which the expeditions occurred?
+
+**Question 3:** Has expedition success changed over time?
+
+{{< pagebreak >}}
+
+## Analysis
+**Question 1:** Which 10 countries had the most successful expedition members?
+```{r}
+#| fig-width: 6
+#| fig-height: 5
+#| out-width: "95%"
+# DATA WRANGLING
+q1_data <- members |>
+  filter(!is.na(citizenship), success == TRUE) |>
+  count(citizenship, sort = TRUE) |>
+  slice_head(n = 10)
+
+q1_data
+
+# PLOT
+ggplot(q1_data, aes(y = reorder(citizenship, n), x = n)) +
+  geom_col() +
+  labs(title = "Top 10 Countries by Number of Successful Expedition Members") +
+  scale_y_discrete(name = NULL) +
+  scale_x_continuous(name = "Number of Successful Expedition Members")
+
+```
+**Key Findings:** Nepal had substantially more successful expedition members than any other country in the dataset, followed by the United States and several other countries with comparatively high numbers of successful climbers. The distribution is heavily concentrated among the leading countries, with a substantial difference between the highest and lower-ranked countries.
+
+**Question 2:** Are there differences between the number of members who successfully and unsuccessfully completed expeditions considering the season in which the expeditions occurred?
+```{r}
+#| fig-width: 8
+#| fig-height: 5
+#| out-width: "90%"
+# DATA WRANGLING
+q2_data <- members |>
+  filter(season != "Unknown", !is.na(success)) |>
+  group_by(season, success) |>
+  summarize(count = n(), .groups = "drop")
+
+q2_data
+
+# PLOT
+ggplot(q2_data, aes(x = success, y = count, fill = success)) +
+  geom_col(position = "dodge") +
+  scale_x_discrete(
+    name = NULL,
+    labels = c("FALSE" = "Unsuccessful", "TRUE" = "Successful")
+  ) +
+  scale_y_continuous(name = "Number of Expedition Members") +
+  ggtitle("Expedition Success by Climbing Season") +
+  scale_fill_discrete(guide = "none") +
+  facet_wrap(~ season, nrow = 1) +
+  theme(plot.title = element_text(size = 14, face = "bold"))
+```
+**Key Findings:** Spring and autumn accounted for the majority of expedition members, while summer and winter had substantially fewer. The proportion of successful members also varied by season, with spring and autumn showing higher success rates than summer and winter.
+
+{{< pagebreak >}}
+
+**Question 3:** Has expedition success changed over time?
+```{r}
+#| fig-width: 8
+#| fig-height: 5
+#| out-width: "90%"
+# DATA WRANGLING
+q3_data <- members |>
+  filter(!is.na(year), !is.na(success)) |>
+  group_by(year) |>
+  summarize(
+    total_members = n(),
+    successful_members = sum(success),
+    success_rate = successful_members / total_members * 100,
+    .groups = "drop"
+  )
+
+q3_data
+
+# PLOT
+ggplot(q3_data, aes(x = year, y = success_rate)) +
+  geom_line() +
+  geom_point() +
+  scale_y_continuous(
+    name = "Success Rate (%)",
+    limits = c(0, 100)
+  ) +
+  scale_x_continuous(name = "Year") +
+  ggtitle("Expedition Success Rate Over Time")
+```
+
+**Key Findings:** Expedition success rates generally increased over time, particularly from the 1970s onward. While earlier years show substantial fluctuations, the 2000s and 2010s generally experienced higher success rates than earlier decades. However, considerable year-to-year variation remains, and differences in the number of expedition members recorded in each year should be considered when interpreting these changes.
+
+## Conclusion
+
+This analysis demonstrates how exploratory data analysis can be used to examine patterns within historical expedition data. By combining data cleaning, aggregation, and visualization, the project provides a clearer view of how expedition participation and outcomes vary across countries, seasons, and time. The analysis also highlights the importance of considering additional factors when interpreting expedition success, as the available data alone cannot explain the underlying reasons for these patterns.
+
+
