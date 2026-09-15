@@ -1,0 +1,178 @@
+---
+format:
+  typst:
+    mainfont: Helvetica
+    fig-format: png
+    fig-dpi: 300
+    fig-width: 6
+    fig-height: 4
+    include-in-header:
+        - text: |
+            /* Color links */
+            #show link: set text(fill: rgb(0, 0, 255))
+editor: source
+---
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+library(tidyverse)
+library(patchwork)
+library(broom)
+```
+
+# Billboard #1 Songs PCA Analysis
+
+```{r}
+#| message: false
+billboard <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2025/2025-08-26/billboard.csv')
+```
+
+## Introduction
+
+In this project, we are working with the Billboard Hot 100 Number Ones Database. Compiled by Chris Dalla River, the database contains substantial data on every song to ever top the Billboard Hot 100 from 1958 through 2025. More information about the dataset can be [found here (Tidy Tuesday project)](https://github.com/rfordatascience/tidytuesday/blob/main/data/2025/2025-08-26/readme.md).
+
+We will be using this dataset to answer the following question:
+
+**Question:** What musical characteristics differentiate Billboard #1 hits, and what underlying dimensions can be identified using PCA?
+
+## Approach
+
+The analysis uses Principal Components Analysis (PCA) to identify the underlying dimensions that explain variation among Billboard #1 songs. Musical variables were standardized before PCA so that differences in measurement scales would not disproportionately influence the results. Genres were also grouped into broader categories to improve visualization and interpretation.
+
+## Analysis
+
+```{r}
+# DATA WRANGLING
+billboard2 <- billboard |>  # select only important variables
+  select(
+    bpm,
+    energy,
+    danceability,
+    happiness,
+    loudness_d_b,
+    acousticness,
+    overall_rating,
+    divisiveness,
+    length_sec,
+    vocally_based,
+    cdr_genre
+  ) |>
+  # combine genres for simplification
+  mutate(
+    genre_group = case_when(
+      str_detect(cdr_genre, "^Rock") ~ "Rock",
+      str_detect(cdr_genre, "^Pop") ~ "Pop",
+      str_detect(cdr_genre, "^Hip Hop/Rap") ~ "Hip Hop",
+      str_detect(cdr_genre, "^Funk/Soul") ~ "Funk/Soul",
+      str_detect(cdr_genre, "^Folk/Country") ~ "Folk/Country",
+      str_detect(cdr_genre, "^Electronic/Dance") ~ "Electronic/Dance",
+      TRUE ~ "Other"
+    ) 
+  ) |>
+  drop_na()  # remove missing values
+```
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+#| out-width: "85%"
+# PCA
+pca_fit <- billboard2 |>
+  select(-cdr_genre, -genre_group) |>  # remove non-numerical variables
+  scale() |>
+  prcomp()
+
+# PCA Scatter Plot
+pca_fit |>
+  augment(billboard2) |>  # Add PCs back to data 
+  ggplot(aes(.fittedPC1, .fittedPC2)) +
+  geom_point(aes(color = genre_group), alpha = 0.7) +
+  scale_x_continuous(name = "Principal Component 1") +
+  scale_y_continuous(name = "Principal Component 2") +
+  ggtitle("PCA of Billboard #1 Songs by Genre") +
+  theme_minimal() +
+  facet_wrap(~ genre_group) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5),
+    axis.title.x = element_text(margin = margin(t = 10)),
+    axis.title.y = element_text(margin = margin(r = 10))
+  )
+```
+**Key Findings:** Songs across genres tend to cluster around the center of the PCA plot, suggesting that many #1 hits share similar underlying musical characteristics despite differences in genre. Pop and Rock songs show greater spread across the principal components, while Electronic/Dance songs appear more concentrated.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 5
+#| out-width: "100%"
+
+# Define an arrow style
+arrow_style <- arrow(  
+  angle = 20, 
+  length = grid::unit(8, "pt"),
+  ends = "first", 
+  type = "closed"
+)
+
+# ROTATION MATRIX
+rotation_plot <- pca_fit |>
+  tidy(matrix = "rotation") |>
+  pivot_wider(
+    names_from = "PC", values_from = "value",
+    names_prefix = "PC"
+  ) |>
+  ggplot(aes(PC1, PC2)) +
+  geom_segment(
+    xend = 0, yend = 0,
+    arrow = arrow_style
+  ) +
+  geom_text(
+    aes(label = column),
+    # order of variables is:
+    # bpm, energy, danceability, happiness, loudness_d_b, acousticness, overall_rating, divisiveness, length_sec, vocally_based
+    hjust = c(1.5, 1.0, 1.1, 0.5, 1.1, 0.0, 0.35, 0.0, 0.5, 0.0),
+    vjust = c(0.3, -0.5, 0.75, -0.2, 0.5, 0.0, -0.5, 1.0, 1.0, -0.2),
+    size = 3.5
+  ) +
+  coord_fixed(
+    xlim = c(-1, 0.75),
+    ylim = c(-0.75, 0.75)
+  ) +
+  ggtitle("Rotation Matrix") +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(margin = margin(t = 10)),
+    axis.title.y = element_text(margin = margin(r = 10))
+  )
+
+# VARIANCE EXPLAINED
+variance_plot <- pca_fit |>
+  tidy(matrix = "eigenvalues") |>  # extract eigenvalues
+  ggplot(aes(PC, percent)) +
+  geom_col(fill = "skyblue") +
+  scale_x_continuous(
+    breaks = 1:10  # create one axis tick per PC
+  ) +
+  scale_y_continuous(
+    name = "Variance Explained",
+    label = scales::label_percent(accuracy = 1)  # format y-axis ticks as % values
+  ) +
+  ggtitle("Variance Explained by Principal Components") +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(margin = margin(t = 10)),
+    axis.title.y = element_text(margin = margin(r = 10))
+  )
+
+# Compound Plot
+rotation_plot | variance_plot
+```
+**Key Findings:** 
+PC1 is strongly associated with energy, loudness, and danceability, while acousticness contributes in the opposite direction. PC2 is more strongly associated with happiness, vocal emphasis, and overall rating, while divisiveness and song length contribute in the opposite direction. BPM contributes relatively little to the first two principal components, suggesting that tempo is not one of the primary dimensions distinguishing these #1 hits. The first two principal components explain approximately 42% of the total variation in the selected musical characteristics.
+
+## Discussion
+The PCA analysis suggests that Billboard #1 songs share some common musical characteristics while still varying across genres. The first principal component primarily represents a contrast between production intensity and acoustic sound, while the second component captures differences related to mood, vocal emphasis, and listener reception. Together, these dimensions provide a simplified way to understand variation across the musical characteristics included in the dataset.
+
+Although the first two principal components explain approximately 42% of the total variation, they do not capture all of the differences between songs. This indicates that additional components contribute to the overall variation in the dataset. The results also show that genre does not completely separate Billboard #1 songs in PCA space, suggesting that songs from different genres can share similar musical characteristics.
