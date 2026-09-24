@@ -1,0 +1,119 @@
+---
+format:
+  typst:
+    mainfont: Helvetica
+    fig-format: png
+    fig-dpi: 300
+    fig-width: 6
+    fig-height: 4
+    include-in-header:
+        - text: |
+            /* Color links */
+            #show link: set text(fill: rgb(0, 0, 255))
+editor: source
+---
+
+# UFO Sightings Data Analysis
+
+In this project, we will be working with the `ufo_sightings` dataset. This project analyzes reported UFO sightings using data on the year, location, and shape of the reported sightings. Using R libraries such as ggforce, tidyverse, and colorspace, the analysis explores geographical and temporal patterns in reported sightings using data wrangling techniques and visualizations.
+
+```{r}
+#| echo: true
+#| message: true
+#| warning: false
+library(tidyverse)
+library(ggforce)
+library(colorspace)
+
+# data prep:
+ufo_sightings <- 
+  read_csv("https://wilkelab.org/classes/SDS348/data_sets/ufo_sightings_clean.csv") |>
+  separate(datetime, into = c("month", "day", "year"), sep = "/") |>
+  separate(year, into = c("year", "time"), sep = " ") |>
+  separate(date_posted, into = c("month_posted", "day_posted", "year_posted"), sep = "/") |>
+  select(-time, -month_posted, -day_posted) |>
+  mutate(
+    year = as.numeric(year),
+    state = toupper(state)
+  ) |>
+  filter(!is.na(country))
+```
+
+**Question 1:** Plot the number of UFO sightings per year since 1990 in the top 10 US states.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 4
+#| out-width: "100%"
+
+# Data manipulation
+ufo_top_ten <- ufo_sightings |> 
+  filter(state %in% c("CA", "WA", "FL", "TX", "NY", "IL", "AZ", "PA", "OH", "MI"), year >= 1990) |> 
+  count(year, state) |> 
+  mutate(state = fct_reorder(state, n)) |> 
+  select(year, state, count = n)
+
+# Plot heatmap
+ggplot(ufo_top_ten, aes(year, state, fill = count)) +
+  geom_tile() +
+  scale_fill_continuous_sequential(palette = "viridis") +
+  labs(
+    title = "UFO Sightings by Year in the Top Ten States",
+    x = "Year",
+    y = "State",
+    fill = "Sightings"
+  ) +
+  theme_minimal()
+
+```
+**Key Findings:** Across all 10 states, the number of sightings reported have grown over time. Sightings reached their highest recorded concentration around 2012 to 2013 across nearly every state shown, before dropping off in 2014. California consistently reported significantly higher numbers than any other state.
+
+**Question 2:** How have UFO sightings changed overtime?
+
+```{r}
+#| fig-width: 5
+#| fig-height: 3
+#| out-width: "70%"
+
+sightings_per_year <- ufo_sightings |>
+  group_by(year) |>
+  summarize(n = n()) |>
+  filter(year >= 1990)
+
+ggplot(sightings_per_year, aes(year, n)) +
+  geom_point() + 
+  scale_x_continuous(name = "Year") +
+  scale_y_continuous(name = "Number of Sightings") +
+  ggtitle("UFO Sightings Over Time") 
+
+```
+
+**Key Findings:** From 1990 through 2012, UFO sightings follow a strong, steady growth trajectory with rapid growth from 1995-2004 to then peaking in 2012-2013 with over 6600 sightings.
+
+
+**Question 3:** What UFO shapes are reported most frequently?
+
+```{r}
+#| fig-width: 4
+#| fig-height: 4
+#| out-width: "60%"
+
+ufo_shapes <- ufo_sightings |>
+  group_by(shape) |>
+  summarize(n = n()) |>
+  drop_na() |>
+  filter(shape != "unknown", shape != "other", n > 200) |>
+  head(15)
+
+ggplot(ufo_shapes, aes(n, reorder(shape, n))) +
+  geom_col() +
+  scale_y_discrete(name = "UFO Shape") +
+  scale_x_continuous(
+    name = "Number of UFO Sightings",
+    limits = c(0, 15000),
+    expand = c(0, 0)
+  ) +
+  ggtitle("Most Frequent UFO Shapes Reported") 
+
+```
+**Key Findings:** Unspecified light is by far the most reported description, reaching nearly 15,000 sightings -- more than double any individual geometric shape. Triangle and circle are the second and third most common reported shapes. Classic science-fiction descriptors like disk, cigar, cylinder, and diamond are reported far less frequently than other shapes.
